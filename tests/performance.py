@@ -6,6 +6,13 @@ import time
 from zerolog import Logger
 
 if __name__ == '__main__':
+    """写入10万条日志
+    zerolog00:0.29200005531311035
+    zerolog01:0.4070000648498535
+    zerolog10:28.51200008392334
+    zerolog11:26.667999982833862
+    pythonlog:3.698000192642212
+    """
     # multiprocessing.log_to_stderr(logging.DEBUG)
     print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'), 'main start')
     # Step 1: start_log with dict
