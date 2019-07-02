@@ -5,6 +5,7 @@ import threading
 import datetime
 import queue
 import inspect
+from atexit import register
 
 
 class Logger(object):
@@ -36,6 +37,8 @@ class Logger(object):
                 Logger.log_queue = multiprocessing.Queue()
                 Logger.__log_proc = multiprocessing.Process(target=write_log, args=(Logger.run_stop, Logger.log_queue, log_conf))
                 Logger.__log_proc.start()
+                # 主进程结束的时候会调用子进程的join()，因此需要等待子进程先退出。
+                register(Logger.instance.__stop_log)
             else:
                 print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + '单例已经初始化')
             Logger.lock.release()
@@ -63,7 +66,7 @@ class Logger(object):
         Logger.log_queue.put((log_time, thread_name, file_name, line_num, func_name, level, message, name))
 
     @staticmethod
-    def stop_log():
+    def __stop_log():
         Logger.run_stop.value = 1
         Logger.__log_proc.join()
         Logger.log_queue.cancel_join_thread()
@@ -71,7 +74,11 @@ class Logger(object):
 
 def write_log(status, log_queue, log_conf):
     pid = os.getpid()
-    proc_name = '{name}[{pid}<=P{ppid}]'.format(name=psutil.Process(pid).name(), pid=pid, ppid=os.getppid())
+    ppid = os.getppid()
+    proc = psutil.Process(pid)
+    parent_proc_hash = hash(psutil.Process(ppid))
+
+    proc_name = '{name}[{pid}<=P{ppid}]'.format(name=psutil.Process(pid).name(), pid=pid, ppid=ppid)
     message = '{log_time} {proc_name} {msg}'.format(log_time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
                                                     proc_name=proc_name,
                                                     msg='开始记录日志')
@@ -80,6 +87,9 @@ def write_log(status, log_queue, log_conf):
     write_db = False
     if log_conf.get('log_file'):
         __log_file = log_conf.get('log_file')
+        log_dir = os.path.dirname(os.path.abspath(__log_file))
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
         write_file = open(file=__log_file, mode='a', encoding='utf8')
 
     if log_conf.get('log_db'):
@@ -120,8 +130,24 @@ def write_log(status, log_queue, log_conf):
                     pass
             except queue.Empty:
                 print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + " queue no data")
+                # TODO: 主进程不会先于子进程结束，这里的检测代码无用？
+                if psutil.pid_exists(ppid):
+                    parent_proc = psutil.Process(ppid)
+                    if not parent_proc or hash(parent_proc) != parent_proc_hash:
+                        log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                        message = f'{log_time} {proc_name} 主进程[{ppid}]不存在(已重新分配)'
+                        print(message)
+                        break
+                else:
+                    log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                    message = f'{log_time} {proc_name} 主进程[{ppid}]不存在'
+                    print(message)
+                    break
             if status.value != 0:
                 if not flush_before_exit or log_queue.empty():
+                    log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                    message = f'{log_time} {proc_name} 状态变更为停止'
+                    print(message)
                     break
 
     if write_file:
