@@ -1,0 +1,5 @@
+/dist
+/zerolog.egg-info
+/.idea
+/__pycache__
+/log
