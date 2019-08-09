@@ -6,6 +6,10 @@ import datetime
 import queue
 import inspect
 from atexit import register
+import sys
+
+
+default_except_hook = sys.excepthook
 
 
 class Logger(object):
@@ -37,8 +41,15 @@ class Logger(object):
                 Logger.log_queue = multiprocessing.Queue()
                 Logger.__log_proc = multiprocessing.Process(target=write_log, args=(Logger.run_stop, Logger.log_queue, log_conf))
                 Logger.__log_proc.start()
-                # 主进程结束的时候会调用子进程的join()，因此需要等待子进程先退出。
+                # 主进程结束的时候会调用子进程的join()，因此需要通知并等待日志子进程先退出。
                 register(Logger.instance.__stop_log)
+
+                def custom_except_hook(exc_type, exc_value, exc_traceback):
+                    print('custom except hook called')
+                    Logger.instance.__stop_log()
+                    default_except_hook(exc_type, exc_value, exc_traceback)
+
+                sys.excepthook = custom_except_hook
             else:
                 print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + '单例已经初始化')
             Logger.lock.release()
