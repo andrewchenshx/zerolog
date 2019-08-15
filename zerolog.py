@@ -66,10 +66,15 @@ class Logger(object):
         else:
             thread_name = ''
         if log_func:
-            caller_frame_record = inspect.stack()[1]
-            file_name = caller_frame_record[1]
-            line_num = caller_frame_record[2]
-            func_name = caller_frame_record[3]
+            # inspect.stack() is tooooo slow!!!!
+            # caller_frame_record = inspect.stack()[1]
+            # file_name = caller_frame_record[1]
+            # line_num = caller_frame_record[2]
+            # func_name = caller_frame_record[3]
+            caller_frame = inspect.currentframe().f_back
+            file_name = caller_frame.f_code.co_filename
+            line_num = caller_frame.f_lineno
+            func_name = caller_frame.f_code.co_name
         else:
             file_name = ''
             line_num = ''
