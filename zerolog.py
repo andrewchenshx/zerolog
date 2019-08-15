@@ -71,7 +71,9 @@ class Logger(object):
             # file_name = caller_frame_record[1]
             # line_num = caller_frame_record[2]
             # func_name = caller_frame_record[3]
-            caller_frame = inspect.currentframe().f_back
+            # sys._getframe is faster than inspect.currentframe()
+            # caller_frame = inspect.currentframe().f_back
+            caller_frame = sys._getframe(1)
             file_name = caller_frame.f_code.co_filename
             line_num = caller_frame.f_lineno
             func_name = caller_frame.f_code.co_name
