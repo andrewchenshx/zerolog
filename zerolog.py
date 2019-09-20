@@ -35,10 +35,11 @@ class Logger(object):
         if Logger.instance is None:
             Logger.lock.acquire()
             if Logger.instance is None:
-                print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + '开始初始化单例')
+                # print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + '开始初始化日志单例')
                 Logger.instance = Logger()
-
                 Logger.log_queue = multiprocessing.Queue()
+
+                Logger.log('INFO', '开始初始化日志单例')
                 Logger.__log_proc = multiprocessing.Process(target=write_log, args=(Logger.run_stop, Logger.log_queue, log_conf))
                 Logger.__log_proc.start()
                 # 主进程结束的时候会调用子进程的join()，因此需要通知并等待日志子进程先退出。
@@ -51,10 +52,12 @@ class Logger(object):
 
                 sys.excepthook = custom_except_hook
             else:
-                print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + '单例已经初始化')
+                # print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + '日志单例已经初始化')
+                Logger.log('WARN', '日志单例已经初始化')
             Logger.lock.release()
         else:
-            print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + '单例已经初始化')
+            # print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + '日志单例已经初始化')
+            Logger.log('WARN', '日志单例已经初始化')
         return Logger.instance
 
     @staticmethod
@@ -97,10 +100,10 @@ def write_log(status, log_queue, log_conf):
     parent_proc_hash = hash(psutil.Process(ppid))
 
     proc_name = '{name}[{pid}<=P{ppid}]'.format(name=psutil.Process(pid).name(), pid=pid, ppid=ppid)
-    message = '{log_time} {proc_name} {msg}'.format(log_time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
-                                                    proc_name=proc_name,
-                                                    msg='开始记录日志')
-    print(message)
+    # message = '{log_time} {proc_name} {msg}'.format(log_time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+    #                                                 proc_name=proc_name,
+    #                                                 msg='开始记录日志')
+    # Logger.log('INFO', message)
     write_file = None
     write_db = False
     if log_conf.get('log_file'):
@@ -109,6 +112,8 @@ def write_log(status, log_queue, log_conf):
         if not os.path.exists(log_dir):
             os.mkdir(log_dir)
         write_file = open(file=__log_file, mode='a', encoding='utf8')
+        line = _self_short_log('INFO', f'{proc_name} 开始记录日志')
+        write_file.write(line)
 
     if log_conf.get('log_db'):
         __log_db = log_conf.get('log_db')
@@ -131,15 +136,7 @@ def write_log(status, log_queue, log_conf):
                 (log_time, thread_name, file_name, line_num, func_name, level, message, name) = log_queue.get(
                     block=True, timeout=time_out)
                 if write_file:
-                    line = '{log_time},{thread_name},{file_name},{func_name},{line_num},{level},{name},{message}\n'.format(
-                        log_time=log_time.strftime('%Y-%m-%d %H:%M:%S.%f'),
-                        thread_name=thread_name,
-                        file_name=file_name,
-                        func_name=func_name,
-                        line_num=line_num,
-                        name=name,
-                        level=level,
-                        message=message)
+                    line = _to_line(log_time, thread_name, file_name, line_num, func_name, level, message, name)
                     try:
                         write_file.write(line)
                     except Exception as e:
@@ -147,33 +144,41 @@ def write_log(status, log_queue, log_conf):
                 if write_db:
                     pass
             except queue.Empty:
-                print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + " queue no data")
+                # print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + " queue no data")
                 # TODO: 主进程不会先于子进程结束，这里的检测代码无用？
                 if psutil.pid_exists(ppid):
                     parent_proc = psutil.Process(ppid)
                     if not parent_proc or hash(parent_proc) != parent_proc_hash:
-                        log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                        message = f'{log_time} {proc_name} 主进程[{ppid}]不存在(已重新分配)'
-                        print(message)
+                        # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                        # message = f'{log_time} {proc_name} 主进程[{ppid}]不存在(已重新分配)'
+                        # print(message)
+                        line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在(已重新分配)')
+                        write_file.write(line)
                         break
                 else:
-                    log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                    message = f'{log_time} {proc_name} 主进程[{ppid}]不存在'
-                    print(message)
+                    # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                    # message = f'{log_time} {proc_name} 主进程[{ppid}]不存在'
+                    # print(message)
+                    line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在')
+                    write_file.write(line)
                     break
             if status.value != 0:
                 if not flush_before_exit or log_queue.empty():
-                    log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                    message = f'{log_time} {proc_name} 状态变更为停止'
-                    print(message)
+                    # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                    # message = f'{log_time} {proc_name} 状态变更为停止'
+                    # print(message)
+                    line = _self_short_log('INFO', f'{proc_name} 状态变更为停止')
+                    write_file.write(line)
                     break
 
     if write_file:
+        line = _self_short_log('INFO', f'{proc_name} 退出记录日志')
+        write_file.write(line)
         write_file.close()
-    message = '{log_time} {proc_name} {msg}'.format(log_time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
-                                                    proc_name=proc_name,
-                                                    msg='退出记录日志')
-    print(message)
+    # message = '{log_time} {proc_name} {msg}'.format(log_time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+    #                                                 proc_name=proc_name,
+    #                                                 msg='退出记录日志')
+    # print(message)
 
 
 def str_code_point(s):
@@ -186,3 +191,25 @@ def env_to_str(env):
     return '\n'.join(['[{key}]:[{value}]'.format(key=key, value=env.get(key)) for key in key_list])
 
 
+def _to_line(log_time, thread_name, file_name, line_num, func_name, level, message, name):
+    line = '{log_time},{thread_name},{file_name},{func_name},{line_num},{level},{name},{message}\n'.format(
+        log_time=log_time.strftime('%Y-%m-%d %H:%M:%S.%f'),
+        thread_name=thread_name,
+        file_name=file_name,
+        func_name=func_name,
+        line_num=line_num,
+        name=name,
+        level=level,
+        message=message)
+    return line
+
+
+def _self_short_log(level, msg):
+    log_time = datetime.datetime.now()
+    thread_name = ''
+    file_name = ''
+    line_num = ''
+    func_name = ''
+    name = ''
+    line = _to_line(log_time, thread_name, file_name, line_num, func_name, level, msg, name)
+    return line
