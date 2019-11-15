@@ -130,46 +130,45 @@ def write_log(status, log_queue, log_conf):
     if log_conf.get('flush_before_exit') == 'N':
         flush_before_exit = False
 
-    if status.value == 0:
-        while True:
-            try:
-                (log_time, thread_name, file_name, line_num, func_name, level, message, name) = log_queue.get(
-                    block=True, timeout=time_out)
-                if write_file:
-                    line = _to_line(log_time, thread_name, file_name, line_num, func_name, level, message, name)
-                    try:
-                        write_file.write(line)
-                    except Exception as e:
-                        print(e)
-                if write_db:
-                    pass
-            except queue.Empty:
-                # print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + " queue no data")
-                # TODO: 主进程不会先于子进程结束，这里的检测代码无用？
-                if psutil.pid_exists(ppid):
-                    parent_proc = psutil.Process(ppid)
-                    if not parent_proc or hash(parent_proc) != parent_proc_hash:
-                        # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                        # message = f'{log_time} {proc_name} 主进程[{ppid}]不存在(已重新分配)'
-                        # print(message)
-                        line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在(已重新分配)')
-                        write_file.write(line)
-                        break
-                else:
+    while True:
+        try:
+            (log_time, thread_name, file_name, line_num, func_name, level, message, name) = log_queue.get(
+                block=True, timeout=time_out)
+            if write_file:
+                line = _to_line(log_time, thread_name, file_name, line_num, func_name, level, message, name)
+                try:
+                    write_file.write(line)
+                except Exception as e:
+                    print(e)
+            if write_db:
+                pass
+        except queue.Empty:
+            # print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + " queue no data")
+            # TODO: 主进程不会先于子进程结束，这里的检测代码无用？
+            if psutil.pid_exists(ppid):
+                parent_proc = psutil.Process(ppid)
+                if not parent_proc or hash(parent_proc) != parent_proc_hash:
                     # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                    # message = f'{log_time} {proc_name} 主进程[{ppid}]不存在'
+                    # message = f'{log_time} {proc_name} 主进程[{ppid}]不存在(已重新分配)'
                     # print(message)
-                    line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在')
+                    line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在(已重新分配)')
                     write_file.write(line)
                     break
-            if status.value != 0:
-                if not flush_before_exit or log_queue.empty():
-                    # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                    # message = f'{log_time} {proc_name} 状态变更为停止'
-                    # print(message)
-                    line = _self_short_log('INFO', f'{proc_name} 状态变更为停止')
-                    write_file.write(line)
-                    break
+            else:
+                # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                # message = f'{log_time} {proc_name} 主进程[{ppid}]不存在'
+                # print(message)
+                line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在')
+                write_file.write(line)
+                break
+        if status.value != 0:
+            if not flush_before_exit or log_queue.empty():
+                # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+                # message = f'{log_time} {proc_name} 状态变更为停止'
+                # print(message)
+                line = _self_short_log('INFO', f'{proc_name} 状态变更为停止')
+                write_file.write(line)
+                break
 
     if write_file:
         line = _self_short_log('INFO', f'{proc_name} 退出记录日志')
