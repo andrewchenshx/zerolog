@@ -143,6 +143,7 @@ def write_log(status, log_queue, log_conf):
             if write_db:
                 pass
         except queue.Empty:
+            write_file.flush()
             # print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + " queue no data")
             # TODO: 主进程不会先于子进程结束，这里的检测代码无用？
             if psutil.pid_exists(ppid):
@@ -153,6 +154,7 @@ def write_log(status, log_queue, log_conf):
                     # print(message)
                     line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在(已重新分配)')
                     write_file.write(line)
+                    write_file.flush()
                     break
             else:
                 # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
@@ -160,6 +162,7 @@ def write_log(status, log_queue, log_conf):
                 # print(message)
                 line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在')
                 write_file.write(line)
+                write_file.flush()
                 break
         if status.value != 0:
             if not flush_before_exit or log_queue.empty():
@@ -168,6 +171,7 @@ def write_log(status, log_queue, log_conf):
                 # print(message)
                 line = _self_short_log('INFO', f'{proc_name} 状态变更为停止')
                 write_file.write(line)
+                write_file.flush()
                 break
 
     if write_file:
