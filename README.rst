@@ -20,4 +20,4 @@ Zerolog
 性能对比
 ---------------
 
-写入10万条日志，不记录调用方法和线程，则zerolog耗时0.29秒，python自带的logging库耗时3.70秒。具体见test/performance.py.
+本人笔记本上，写入10万条日志，则zerolog耗时0.8秒，python自带的logging库耗时17.2秒。具体见test/performance.py.

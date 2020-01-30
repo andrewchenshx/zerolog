@@ -7,11 +7,11 @@ from zerolog import Logger
 
 if __name__ == '__main__':
     """写入10万条日志
-    zerolog00:0.29200005531311035
-    zerolog01:0.4070000648498535
-    zerolog10:28.51200008392334
-    zerolog11:26.667999982833862
-    pythonlog:3.698000192642212
+    zerolog00:0.551555871963501
+    zerolog01:0.7738981246948242
+    zerolog10:0.5814762115478516
+    zerolog11:0.8038501739501953
+    pythonlog:17.206952571868896
     """
     # multiprocessing.log_to_stderr(logging.DEBUG)
     print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'), 'main start')
