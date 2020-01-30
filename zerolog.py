@@ -18,6 +18,8 @@ class Logger(object):
     log_queue = None
     run_stop = multiprocessing.Value('i', 0)
     __log_proc = None
+    unflushed_write_cnt = 0
+    write_buf_cnt = 1000
 
     def __init__(self):
         pass
@@ -137,13 +139,13 @@ def write_log(status, log_queue, log_conf):
             if write_file:
                 line = _to_line(log_time, thread_name, file_name, line_num, func_name, level, message, name)
                 try:
-                    write_file.write(line)
+                    write_line_to_file(write_file, line)
                 except Exception as e:
                     print(e)
             if write_db:
                 pass
         except queue.Empty:
-            write_file.flush()
+            flush_line_to_file(write_file)
             # print(datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f') + " queue no data")
             # TODO: 主进程不会先于子进程结束，这里的检测代码无用？
             if psutil.pid_exists(ppid):
@@ -153,30 +155,24 @@ def write_log(status, log_queue, log_conf):
                     # message = f'{log_time} {proc_name} 主进程[{ppid}]不存在(已重新分配)'
                     # print(message)
                     line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在(已重新分配)')
-                    write_file.write(line)
-                    write_file.flush()
+                    flush_line_to_file(write_file, line)
                     break
             else:
                 # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
                 # message = f'{log_time} {proc_name} 主进程[{ppid}]不存在'
                 # print(message)
                 line = _self_short_log('INFO', f'{proc_name} 主进程[{ppid}]不存在')
-                write_file.write(line)
-                write_file.flush()
+                flush_line_to_file(write_file, line)
                 break
         if status.value != 0:
-            if not flush_before_exit or log_queue.empty():
-                # log_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-                # message = f'{log_time} {proc_name} 状态变更为停止'
-                # print(message)
-                line = _self_short_log('INFO', f'{proc_name} 状态变更为停止')
-                write_file.write(line)
-                write_file.flush()
+            if (not flush_before_exit) or log_queue.qsize() == 0:
+                line = _self_short_log('INFO', f'{proc_name} 状态变更为停止,未写入消息[{log_queue.qsize()}]')
+                flush_line_to_file(write_file, line)
                 break
 
     if write_file:
         line = _self_short_log('INFO', f'{proc_name} 退出记录日志')
-        write_file.write(line)
+        flush_line_to_file(write_file, line)
         write_file.close()
     # message = '{log_time} {proc_name} {msg}'.format(log_time=datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
     #                                                 proc_name=proc_name,
@@ -216,3 +212,18 @@ def _self_short_log(level, msg):
     name = ''
     line = _to_line(log_time, thread_name, file_name, line_num, func_name, level, msg, name)
     return line
+
+
+def write_line_to_file(file, line):
+    file.write(line)
+    Logger.unflushed_write_cnt += 1
+    if Logger.unflushed_write_cnt >= Logger.write_buf_cnt:
+        file.flush()
+        Logger.unflushed_write_cnt = 0
+
+
+def flush_line_to_file(file, line=None):
+    if line:
+        file.write(line)
+    file.flush()
+    Logger.unflushed_write_cnt = 0
